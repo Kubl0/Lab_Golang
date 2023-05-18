@@ -12,36 +12,49 @@ import (
 
 // Game implements ebiten.Game interface.
 type Game struct {
-	layers [100][100]int
+	layers [100][100]Organism
 }
 
-// Update proceeds the game state.
-// Update is called every tick (1/60 [s] by default).
+type Organism struct {
+	orgType     string
+	timeToMove  int
+	currentMove int
+}
+
+func (game *Game) freePositionsAround(x, y int) [][]int {
+	var freePositions [][]int
+	if x != 0 && game.layers[x-1][y].timeToMove == 0 {
+		freePositions = append(freePositions, []int{x - 1, y})
+	}
+	if x != 99 && game.layers[x+1][y].timeToMove == 0 {
+		freePositions = append(freePositions, []int{x + 1, y})
+	}
+	if y != 0 && game.layers[x][y-1].timeToMove == 0 {
+		freePositions = append(freePositions, []int{x, y - 1})
+	}
+	if y != 99 && game.layers[x][y+1].timeToMove == 0 {
+		freePositions = append(freePositions, []int{x, y + 1})
+	}
+	return freePositions
+}
+
 func (g *Game) Update() error {
-	for i := 0; i < 100; i++ {
-		for j := 0; j < 100; j++ {
-			if g.layers[i][j] == 1 {
-				c := rand.Intn(4)
-				if c == 0 {
-					if i > 0 {
-						g.layers[i][j] = 0
-						g.layers[i-1][j] = 1
+	for tileX := range g.layers {
+		for tileY := range g.layers[tileX] {
+			if g.layers[tileX][tileY].orgType == "ant" {
+				if g.layers[tileX][tileY].timeToMove != 0 {
+					if g.layers[tileX][tileY].currentMove < g.layers[tileX][tileY].timeToMove {
+						g.layers[tileX][tileY].currentMove++
+					} else {
+						freePositions := g.freePositionsAround(tileX, tileY)
+						if len(freePositions) != 0 {
+							pos := freePositions[rand.Intn(len(freePositions))]
+							g.layers[pos[0]][pos[1]] = g.layers[tileX][tileY]
+							g.layers[pos[0]][pos[1]].currentMove = 0
+							g.layers[tileX][tileY] = Organism{"none", 0, 0}
+						}
 					}
-				} else if c == 1 {
-					if i < 99 {
-						g.layers[i][j] = 0
-						g.layers[i+1][j] = 1
-					}
-				} else if c == 2 {
-					if j > 0 {
-						g.layers[i][j] = 0
-						g.layers[i][j-1] = 1
-					}
-				} else if c == 3 {
-					if j < 99 {
-						g.layers[i][j] = 0
-						g.layers[i][j+1] = 1
-					}
+
 				}
 			}
 		}
@@ -49,42 +62,32 @@ func (g *Game) Update() error {
 	return nil
 }
 
-// Draw draws the game screen.
-// Draw is called every frame (typically 1/60[s] for 60Hz display).
 func (g *Game) Draw(screen *ebiten.Image) {
 	tileXcount := len(g.layers[0])
-	tileYcount := len(g.layers)
 
 	x, _ := screen.Size()
 	tileSize := x / tileXcount
 
-	for i := 0; i < tileXcount; i++ {
-		for j := 0; j < tileYcount; j++ {
-			if g.layers[j][i] == 0 {
-				ebitenutil.DrawRect(screen, float64(i*tileSize), float64(j*tileSize), float64(tileSize), float64(tileSize), color.White)
-			} else {
-				if g.layers[j][i] == 1 {
-					ebitenutil.DrawRect(screen, float64(i*tileSize), float64(j*tileSize), float64(tileSize), float64(tileSize), color.Black)
-				}
+	for tileX := range g.layers {
+		for tileY := range g.layers[tileX] {
+			if g.layers[tileX][tileY].timeToMove != 0 {
+				ebitenutil.DrawRect(screen, float64(tileX*tileSize), float64(tileY*tileSize), float64(tileSize), float64(tileSize), color.White)
 			}
-
 		}
 	}
+
 }
 
-// Layout takes the outside size (e.g., the window size) and returns the (logical) screen size.
-// If you don't have to adjust the screen size with the outside size, just return a fixed size.
 func (g *Game) Layout(outsideWidth, outsideHeight int) (screenWidth, screenHeight int) {
 	return 500, 500
 }
 
 func main() {
 	game := &Game{
-		layers: generateMap()}
-	// Specify the window size as you like. Here, a doubled size is specified.
+		layers: [100][100]Organism{}}
+	game.generateMap()
 	getSize()
-	ebiten.SetWindowTitle("Your game's title")
-	// Call ebiten.RunGame to start your game loop.
+	ebiten.SetWindowTitle("MRUFKI")
 	if err := ebiten.RunGame(game); err != nil {
 		log.Fatal(err)
 	}
@@ -98,14 +101,16 @@ func getSize() {
 	ebiten.SetWindowSize(*w, *h)
 }
 
-func generateMap() [100][100]int {
-	antMap := [100][100]int{}
+func (game *Game) generateMap() [100][100]Organism {
 	for i := 0; i < 100; i++ {
 		for j := 0; j < 100; j++ {
 			if rand.Intn(100) < 5 {
-				antMap[i][j] = rand.Intn(2)
+				ant := &Organism{"ant", 3, 0}
+				game.layers[i][j] = *ant
+			} else {
+				game.layers[i][j] = Organism{"none", 0, 0}
 			}
 		}
 	}
-	return antMap
+	return game.layers
 }
